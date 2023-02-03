@@ -45,57 +45,35 @@ ISR (TIMER1_OVF_vect)
 
 ISR (PCINT1_vect)
 {
-    static uint8_t old_AB = 3;
+    static uint8_t state = 3;
     static int8_t encval = 0;  
     static const int8_t enc_states [] PROGMEM = {0,-1,1,0,1,0,0,-1,-1,0,0,1,0,1,-1,0};
 
-    old_AB = (old_AB<<2) & 0x0f;
+    state = (state<<2) & 0x0f;
     uint8_t pincRead = PINC;
-    old_AB |= bit_is_clear(pincRead, PINC1)<<PINC1 | bit_is_clear(pincRead, PINC0)<<PINC0;
+    state |= bit_is_clear(pincRead, PINC1)<<PINC1 | bit_is_clear(pincRead, PINC0)<<PINC0;
 
-    encval += pgm_read_byte(&(enc_states[old_AB]));
+    encval += pgm_read_byte(&(enc_states[state]));
 
-    if( encval > 3 ) {  //four steps forward
+    if( encval > 3 ) //four steps forward
+    {
         encval = 0;
 
-        _gainMain +=1;
-        PORTD |= 1<<PD5;
-        _delay_ms(50);
-        PORTD &= ~(1<<PD5);
-        _delay_ms(50);
-        PORTD |= 1<<PD5;
-        _delay_ms(50);
-        PORTD &= ~(1<<PD5);
+        _dataWord +=1;
     }
-    else if( encval < -3 ) {  //four steps backwards
+    else if( encval < -3 ) //four steps backwards
+    {
         encval = 0;
 
         if (_dataWord == 1)
         {
-            _gainMain = 0;
+            _dataWord = 0;
         }
         else
         {
-            _gainMain -=1;
+            _dataWord -=1;
         }
-        PORTD |= 1<<PD5;
-        _delay_ms(50);
-        PORTD &= ~(1<<PD5);
     }
-
-    //uint8_t rotaryResult = _rotaryEncoder.Process();
-    //if (rotaryResult == DIR_CW)
-    //{
-    //    PORTD |= 1<<PD5;
-    //    _delay_ms(5);
-    //    PORTD &= ~(1<<PD5);
-    //}
-    //else if (rotaryResult == DIR_CCW)
-    //{
-    //    PORTD |= 1<<PD5;
-    //    _delay_ms(5);
-    //    PORTD &= ~(1<<PD5);
-    //}
 }
 
 void timer_init(void)
@@ -137,7 +115,7 @@ int main (void)
     DDRC &= ~(1 << PINC1);
     DDRD &= ~(1 << PIND6);
 
-    _dataWord = 0b01010000;
+    _dataWord = 0;
 
     interrupt_init();
     tw_init(TW_FREQ_250K, false);
@@ -162,12 +140,12 @@ int main (void)
         if (DoScan)
         {
             DoScan = false;
-            debounce();
+            //debounce();
 
-            inputSwitchGroup.Scan();
-            outputSwitchGroup.Scan();
-            ////monoSwitch.Scan();
-            ////dimSwitch.Scan();
+            //inputSwitchGroup.Scan();
+            //outputSwitchGroup.Scan();
+            //////monoSwitch.Scan();
+            //////dimSwitch.Scan();
 
             if (txCounter++ % 8 == 0)
             {
@@ -179,7 +157,7 @@ int main (void)
                 lastDataWord = _dataWord;
 
                 ret_code_t error_code;
-                uint8_t data[1] = { _dataWord };
+                uint8_t data[2] = { _dataWord, ~_dataWord };
                 error_code = tw_master_transmit(0x10, data, sizeof(data), false);
             }
         }
