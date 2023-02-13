@@ -13,6 +13,10 @@ class ToggleSwitch
     uint8_t _outputPin;
     uint8_t _port;
 
+    // TODO: this can probably be obviated by a more clever use of the pin
+    // value vs. the mask.
+    bool _state = false;
+
     uint8_t _inputPinMask;
     uint8_t _outputPinMask;
 
@@ -45,6 +49,7 @@ class ToggleSwitch
             if (button_down_b(_inputPinMask))
             {
                 *_outputRegister ^= _outputPinMask;
+                _state = !_state;
 
                 return true;
             }
@@ -54,6 +59,7 @@ class ToggleSwitch
             if (button_down_c(_inputPinMask))
             {
                 *_outputRegister ^= _outputPinMask;
+                _state = !_state;
 
                 return true;
             }
@@ -63,12 +69,18 @@ class ToggleSwitch
             if (button_down_d(_inputPinMask))
             {
                 *_outputRegister ^= _outputPinMask;
+                _state = !_state;
 
                 return true;
             }
         }
 
         return false;
+    }
+
+    bool Get()
+    {
+        return _state;
     }
 
     void Set(bool isOn)

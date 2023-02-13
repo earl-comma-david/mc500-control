@@ -5,21 +5,25 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
+#include <stdbool.h>
+#include <string.h> 
 #include <util/delay.h>
 #include "debounce.h"
-#include "ToggleSwitch.cpp"
 #include "debounce.cpp"
-#include "twi-master.h"
-#include "twi-master.c"
 #include "rotary.h"
 #include "rotary.cpp"
+#include "ShiftRegister.cpp"
+#include "ToggleSwitch.cpp"
+#include "twi-master.h"
+#include "twi-master.c"
+#include "uart.h"
+#include "uart.c"
 
-volatile uint8_t _dataWord = 0;
-volatile uint8_t _gainMain = 0;
+volatile uint8_t _switchState = 0;
+volatile uint8_t _attenuationMain = 127;
 volatile uint8_t _gainHP = 0;
+volatile bool IsDim = false;
 volatile bool DoScan;
-
-//Rotary _rotaryEncoder;
 
 #define COUNTER 65500;
 
@@ -36,6 +40,8 @@ volatile bool DoScan;
 #define OUTPUT_1 PB4;
 #define OUTPUT_2 PC0;
 #define OUTPUT_3 PC1;
+
+#define DIM_OFFSET_UINT 32
 
 ISR (TIMER1_OVF_vect)
 {
@@ -59,20 +65,23 @@ ISR (PCINT1_vect)
     {
         encval = 0;
 
-        _dataWord +=1;
+        if (_attenuationMain == 0)
+        {
+            return;
+        }
+
+        _attenuationMain -=1;
     }
     else if( encval < -3 ) //four steps backwards
     {
         encval = 0;
 
-        if (_dataWord == 1)
+        if (_attenuationMain == 127)
         {
-            _dataWord = 0;
+            return;
         }
-        else
-        {
-            _dataWord -=1;
-        }
+
+        _attenuationMain +=1;
     }
 }
 
@@ -102,63 +111,125 @@ void interrupt_init(void)
 int main (void)
 {
     // pullups
-    PORTB |= (1<<PB0);
-    //PORTC |= (1<<PC0) | (1<<PC1);
-    PORTD |= (1<<PD6) | (1<<PD4) | (1<<PD3);
+    PORTB |= (1<<PB2) | (1<<PB1) | (1<<PB0);
+    PORTC |= (1<<PC5) | (1<<PC4);
+    PORTD |= (1<<PD7) | (1<<PD6) | (1<<PD5) | (1<<PD3) | (1<<PD2);
 
     // outputs
-    DDRD |= (1<<PD5);
+    DDRB |= (1<<PB4);
+    DDRB |= (1<<PB3);
+    DDRC |= (1<<PC2);
 
     // inputs
+    DDRB &= ~(1 << PINB5);
+    DDRB &= ~(1 << PINB2);
+    DDRB &= ~(1 << PINB1);
     DDRB &= ~(1 << PINB0);
     DDRC &= ~(1 << PINC0);
     DDRC &= ~(1 << PINC1);
+    DDRD &= ~(1 << PIND7);
     DDRD &= ~(1 << PIND6);
-
-    _dataWord = 0;
+    DDRD &= ~(1 << PIND5);
+    DDRD &= ~(1 << PIND3);
+    DDRD &= ~(1 << PIND2);
 
     interrupt_init();
-    tw_init(TW_FREQ_250K, false);
+    tw_init(TW_FREQ_250K, true);
+
+    uart_init();
+    stdout = &uart_output;
+    //stdin  = &uart_input;
 
     ExclusiveToggleSwitchGroup inputSwitchGroup = ExclusiveToggleSwitchGroup(
-        ToggleSwitch(&PINB, PINB0, &_dataWord, 6, 1),
-        ToggleSwitch(&PIND, PIND6, &_dataWord, 5, 4));
+        ToggleSwitch(&PIND, PIND2, &_switchState, 7, 4),
+        ToggleSwitch(&PIND, PIND3, &_switchState, 6, 4),
+        ToggleSwitch(&PIND, PIND5, &_switchState, 5, 4));
 
     ExclusiveToggleSwitchGroup outputSwitchGroup = ExclusiveToggleSwitchGroup(
-        ToggleSwitch(&PIND, PIND4, &_dataWord, 4, 4),
-        ToggleSwitch(&PIND, PIND3, &_dataWord, 3, 4));
+        ToggleSwitch(&PIND, PIND6, &_switchState, 4, 4),
+        ToggleSwitch(&PIND, PIND7, &_switchState, 3, 4),
+        ToggleSwitch(&PINB, PINB0, &_switchState, 2, 1));
     
-    //_rotaryEncoder = Rotary(&PINC, PINC0, &PINC, PINC1);
+    ////_rotaryEncoder = Rotary(&PINC, PINC0, &PINC, PINC1);
 
-    //ToggleSwitch monoSwitch = ToggleSwitch(&PINB, PINB0, &PORTB, PB5);
-    //ToggleSwitch dimSwitch = ToggleSwitch(&PINC, PINC6, &PORTD, PD0);
+    ToggleSwitch monoSwitch = ToggleSwitch(&PINB, PINB1, &_switchState, 1, 1);
+    ToggleSwitch dimSwitch = ToggleSwitch(&PINB, PINB2, &_switchState, 0, 1);
+
+    ShiftRegister shiftRegister = ShiftRegister();
 	
-    uint8_t lastDataWord = 0;
+    _switchState = 0b10010000;
+    uint8_t lastSwitchState = 0;
+    uint8_t lastAttenuationMain = 0;
     int txCounter = 0;
+    bool doShift = false;
+    bool doI2cTx = false;
+
+    char _stringOut[30] = {0};
+
     while(1)
     {
         if (DoScan)
         {
             DoScan = false;
-            //debounce();
 
-            //inputSwitchGroup.Scan();
-            //outputSwitchGroup.Scan();
-            //////monoSwitch.Scan();
-            //////dimSwitch.Scan();
+            debounce();
+            inputSwitchGroup.Scan();
+            outputSwitchGroup.Scan();
+            monoSwitch.Scan();
+            dimSwitch.Scan();
 
-            if (txCounter++ % 8 == 0)
+            if (txCounter++ % 16 == 0)
             {
-                if (_dataWord == lastDataWord)
+
+                if (_switchState != lastSwitchState)
                 {
-                    continue;
+                    lastSwitchState = _switchState;
+                    doShift = true;
+                    doI2cTx = true;
+                }
+                
+                uint8_t attenuationMain = lastAttenuationMain;
+
+                if (_attenuationMain != lastAttenuationMain)
+                {
+                    //sprintf(_stringOut, "attenuation: \t%d\r\n", _attenuationMain);
+                    //printf(_stringOut);
+                    lastAttenuationMain = _attenuationMain;
+                    doI2cTx = true;
+
+                    if (dimSwitch.Get())
+                    {
+                        if (attenuationMain + DIM_OFFSET_UINT > 127)
+                        {
+                            attenuationMain = 127;
+                        }
+                        else
+                        {
+                            attenuationMain = attenuationMain+DIM_OFFSET_UINT;
+                        }
+                        //attenuationMain = attenuationMain/2;
+
+                        //if (attenuationMain != lastAttenuationMain)
+                        //{
+                        //    sprintf(_stringOut, "attenuation: \t%d\r\n", attenuationMain);
+                        //    printf(_stringOut);
+                        //}
+                    }
                 }
 
-                lastDataWord = _dataWord;
+                if (doI2cTx)
+                {
+                    ret_code_t error_code;
+                    uint8_t data[2] = { attenuationMain, lastSwitchState };
+                    error_code = tw_master_transmit(0x10, data, sizeof(data), false);
+                    doI2cTx = false;
+                }
 
-                ret_code_t error_code;
-                uint8_t data[2] = { _dataWord, ~_dataWord };
-                error_code = tw_master_transmit(0x10, data, sizeof(data), false);
+                if (doShift)
+                {
+                    shiftRegister.shiftOut(lastSwitchState);
+                    doShift = false;
+                }
             }
         }
     }
