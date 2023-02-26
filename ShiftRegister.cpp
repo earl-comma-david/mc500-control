@@ -1,20 +1,23 @@
 #include <avr/io.h>
 #include <util/delay.h>
 
-#define PIN_SER      PB4
-#define PIN_RCLK     PC2
-#define PIN_SRCLK    PB3
+//#define PIN_SER      PC3
+//#define PIN_RCLK     PC2
+//#define PIN_SRCLK    PC1
+#define PIN_SER      PC3
+#define PIN_RCLK     PD1
+#define PIN_SRCLK    PC2
 
 // NOTE: pin 10 (SRCLR') on register needs to go to VCC
 // NOTE: pin 13 (OE') on register needs to go to GND
 
 // write digital "high" to pin <pn> on portb
-#define GOHI(pn) PORTB |= (1<<pn)
-#define GOHILATCH(pn) PORTC |= (1<<pn)
+#define GOHI(pn) PORTC |= (1<<pn)
+#define GOHI_RCLK(pn) PORTD |= (1<<pn)
 
 // write digital "low" to pin <pn> on portb
-#define GOLO(pn) PORTB &= ~(1<<pn)
-#define GOLOLATCH(pn) PORTC &= ~(1<<pn)
+#define GOLO(pn) PORTC &= ~(1<<pn)
+#define GOLO_RCLK(pn) PORTD &= ~(1<<pn)
 
 void put(uint8_t);
 void putBit(uint8_t);
@@ -31,10 +34,10 @@ class ShiftRegister
 
     ShiftRegister() {}
 
-    void setup() {
-        // set output pins on portb (the only port on attiny85)
-        DDRB |= (1 << PIN_SER) | (1 << PIN_SRCLK) | (1 << PIN_RCLK);
-    }
+    //void setup() {
+    //    // set output pins on portb (the only port on attiny85)
+    //    DDRB |= (1 << PIN_SER) | (1 << PIN_SRCLK) | (1 << PIN_RCLK);
+    //}
 
     //void longDelay(uint16_t ms) {
     //    for(ms /= 10; ms>0; ms--) _delay_ms(10);
@@ -83,8 +86,10 @@ class ShiftRegister
     * Tells the shift register to output all the bits it's read
     */
     void latch() {
-        GOHILATCH(PIN_RCLK);
-        GOLOLATCH(PIN_RCLK);
+        //GOHI(PIN_RCLK);
+        //GOLO(PIN_RCLK);
+        GOHI_RCLK(PIN_RCLK);
+        GOLO_RCLK(PIN_RCLK);
     }
 
     /*
