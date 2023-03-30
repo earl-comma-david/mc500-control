@@ -18,28 +18,12 @@
 #include "twi-master.c"
 
 #define COUNTER 65500;
-
-//#define INPUT_1_ID 1;
-//#define INPUT_2_ID 2;
-//#define INPUT_3_ID 3;
-//#define OUTPUT_1_ID 4;
-//#define OUTPUT_2_ID 5;
-//#define OUTPUT_3_ID 6;
-//
-//#define INPUT_1 PB1;
-//#define INPUT_2 PB2;
-//#define INPUT_3 PB3;
-//#define OUTPUT_1 PB4;
-//#define OUTPUT_2 PC0;
-//#define OUTPUT_3 PC1;
-
-#define DIM_OFFSET_UINT 32
-
 #define AUDIO_SLAVE_ADDRESS 0x10
+#define DIM_OFFSET 16
 
-volatile uint8_t _switchState = 0b10010000;
-volatile uint8_t _attenuationMain = 127;
+volatile uint16_t _switchState = 0b1000000010010000;
 volatile uint8_t _attenuationHP = 127;
+volatile uint8_t _attenuationMain = 127;
 volatile bool IsDim = false;
 volatile bool DoScan;
 
@@ -137,10 +121,10 @@ ISR (PCINT1_vect)
 
 void timer_init(void)
 {
-    TCNT1 = COUNTER; //63974;   // for 1 sec at 16 MHz	
+    TCNT1 = COUNTER; // for 1 sec at 16 MHz	
 	TCCR1A = 0x00;
 	TCCR1B = (1<<CS10) | (1<<CS12);  // Timer mode with 1024 prescler
-	TIMSK1 = (1 << TOIE1) ;   // Enable timer1 overflow interrupt(TOIE1)
+	TIMSK1 = (1 << TOIE1) ;
 }
  
 void pin_change_interrupt_init(void)
@@ -157,7 +141,7 @@ void interrupt_init(void)
     pin_change_interrupt_init();
 }
 
-void init_io(void)
+void init_io_pins(void)
 {
     // pullups
     PORTB |= (1<<PB4) | (1<<PB3) | (1<<PB2) | (1<<PB1) | (1<<PB0);
@@ -190,7 +174,7 @@ void init(void)
 {
     interrupt_init();
     tw_init(TW_FREQ_250K, true);
-    init_io();
+    init_io_pins();
 
     UCSR0B = 0;
 
@@ -202,22 +186,22 @@ int main (void)
     init();
 
     ExclusiveToggleSwitchGroup inputSwitchGroup = ExclusiveToggleSwitchGroup(
-        ToggleSwitch(&PIND, PIND2, &_switchState, 7, 4),
-        ToggleSwitch(&PIND, PIND3, &_switchState, 6, 4),
-        ToggleSwitch(&PIND, PIND4, &_switchState, 5, 4));
+        ToggleSwitch(&PIND, PIND2, &_switchState, 15, 4),
+        ToggleSwitch(&PIND, PIND3, &_switchState, 14, 4),
+        ToggleSwitch(&PIND, PIND4, &_switchState, 13, 4));
 
     ExclusiveToggleSwitchGroup outputSwitchGroup = ExclusiveToggleSwitchGroup(
-        ToggleSwitch(&PIND, PIND5, &_switchState, 4, 4),
-        ToggleSwitch(&PIND, PIND6, &_switchState, 3, 4),
-        ToggleSwitch(&PIND, PIND7, &_switchState, 2, 4));
+        ToggleSwitch(&PIND, PIND5, &_switchState, 6, 4),
+        ToggleSwitch(&PIND, PIND6, &_switchState, 5, 4),
+        ToggleSwitch(&PIND, PIND7, &_switchState, 4, 4));
 
-    ToggleSwitch subSwitch = ToggleSwitch(&PINB, PINB2, &_switchState, 1, 1);
-    ToggleSwitch monoSwitch = ToggleSwitch(&PINB, PINB3, &_switchState, 1, 1);
-    ToggleSwitch dimSwitch = ToggleSwitch(&PINB, PINB4, &_switchState, 0, 1);
+    ToggleSwitch subSwitch = ToggleSwitch(&PINB, PINB2, &_switchState, 3, 1);
+    ToggleSwitch monoSwitch = ToggleSwitch(&PINB, PINB3, &_switchState, 2, 1);
+    ToggleSwitch dimSwitch = ToggleSwitch(&PINB, PINB4, &_switchState, 1, 1);
 
     ShiftRegister shiftRegister = ShiftRegister();
 	
-    uint8_t lastSwitchState = 0;
+    uint16_t lastSwitchState = 0;
     uint8_t lastAttenuationMain = 0;
     int txCounter = 0;
     bool doShift = false;
@@ -238,7 +222,6 @@ int main (void)
 
             if (txCounter++ % 16 == 0)
             {
-
                 if (_switchState != lastSwitchState)
                 {
                     lastSwitchState = _switchState;
@@ -250,27 +233,26 @@ int main (void)
 
                 if (_attenuationMain != lastAttenuationMain)
                 {
-                    lastAttenuationMain = _attenuationMain;
+                    attenuationMain = lastAttenuationMain = _attenuationMain;
                     doI2cTx = true;
+                }
 
-                    if (dimSwitch.Get())
+                if (dimSwitch.Get())
+                {
+                    if (attenuationMain + DIM_OFFSET > 127)
                     {
-                        if (attenuationMain + DIM_OFFSET_UINT > 127)
-                        {
-                            attenuationMain = 127;
-                        }
-                        else
-                        {
-                            attenuationMain = attenuationMain+DIM_OFFSET_UINT;
-                        }
+                        attenuationMain = 127;
+                    }
+                    else
+                    {
+                        attenuationMain = attenuationMain+DIM_OFFSET;
                     }
                 }
 
                 if (doI2cTx)
                 {
-                    ret_code_t error_code;
-                    uint8_t data[2] = { attenuationMain, lastSwitchState };
-                    error_code = tw_master_transmit(AUDIO_SLAVE_ADDRESS, data, sizeof(data), false);
+                    uint8_t data[3] = { attenuationMain, lastSwitchState>>8, lastSwitchState };
+                    tw_master_transmit(AUDIO_SLAVE_ADDRESS, data, sizeof(data), false);
                     doI2cTx = false;
                 }
 

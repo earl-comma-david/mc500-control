@@ -62,9 +62,9 @@ class ShiftRegister
     /*
     * Writes a byte out serially to PIN_SER
     */
-    void shiftOut(uint8_t toPut) {
+    void shiftOut(uint16_t toPut) {
         uint8_t i;
-        for(i = 0; i < 8; i++) {
+        for(i = 0; i < 16; i++) {
             putBit(toPut & 1);
             toPut >>= 1;
         }

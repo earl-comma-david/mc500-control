@@ -9,7 +9,7 @@ class ToggleSwitch
 
     volatile uint8_t* _inputRegister;
     uint8_t _inputPin;
-    volatile uint8_t* _outputRegister;
+    volatile uint16_t* _outputRegister;
     uint8_t _outputPin;
     uint8_t _port;
 
@@ -18,7 +18,7 @@ class ToggleSwitch
     bool _state = false;
 
     uint8_t _inputPinMask;
-    uint8_t _outputPinMask;
+    uint16_t _outputPinMask;
 
   public:
 
@@ -27,7 +27,7 @@ class ToggleSwitch
     ToggleSwitch(
         volatile uint8_t* inputRegister,
         uint8_t inputPin,
-        volatile uint8_t* outputRegister,
+        volatile uint16_t* outputRegister,
         uint8_t outputPin,
         uint8_t port)
     {
@@ -93,7 +93,6 @@ class ToggleSwitch
         {
             *_outputRegister &= ~_outputPinMask;
         }
-
     }
 };
 
