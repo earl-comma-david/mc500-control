@@ -30,7 +30,8 @@ void debounce_init(void);
     low = ~(low & mask);            \
     high = low ^ (high & mask)
 
-static inline void debounce (void)
+static inline void debounce (uint8_t word)
+//static inline void debounce (void)
 {
     // Eight vertical two bit counters for number of equal states
     static uint8_t vcount_low_b = 0xFF, vcount_high_b = 0xFF;
@@ -45,7 +46,8 @@ static inline void debounce (void)
     // button_state to see which ones are about to change state
     uint8_t state_changed_b = ~PINB ^ button_state_b;
     uint8_t state_changed_c = ~PINC ^ button_state_c;
-    uint8_t state_changed_d = ~PIND ^ button_state_d;
+    uint8_t state_changed_d = ~word ^ button_state_d;
+    //uint8_t state_changed_d = ~PIND ^ button_state_d;
 
     // Decrease counters where state_changed = 1, set the others to 0b11.
     VC_DEC_OR_SET(vcount_high_b, vcount_low_b, state_changed_b);

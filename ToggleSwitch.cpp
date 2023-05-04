@@ -7,17 +7,16 @@ class ToggleSwitch
 {
   private:
 
-    volatile uint8_t* _inputRegister;
+    volatile uint16_t* _inputRegister;
     uint8_t _inputPin;
     volatile uint16_t* _outputRegister;
     uint8_t _outputPin;
-    uint8_t _port;
 
     // TODO: this can probably be obviated by a more clever use of the pin
     // value vs. the mask.
     bool _state = false;
 
-    uint8_t _inputPinMask;
+    uint16_t _inputPinMask;
     uint16_t _outputPinMask;
 
   public:
@@ -25,57 +24,30 @@ class ToggleSwitch
     ToggleSwitch() {}
 
     ToggleSwitch(
-        volatile uint8_t* inputRegister,
+        volatile uint16_t* inputRegister,
         uint8_t inputPin,
         volatile uint16_t* outputRegister,
-        uint8_t outputPin,
-        uint8_t port)
+        uint8_t outputPin)
     {
         _inputRegister = inputRegister;
         _inputPin = inputPin,
         _outputRegister = outputRegister;
         _outputPin = outputPin;
-        _port = port;
 
         _inputPinMask = (1 << _inputPin);
         _outputPinMask = (1 << _outputPin);
     }
 
-    bool Scan()
+    bool Scan(bool doSet = true)
     {
-        // TODO: better way of modulating strategy
-        if (_port == 1)
-        {
-            if (button_down_b(_inputPinMask))
-            {
-                *_outputRegister ^= _outputPinMask;
-                _state = !_state;
+        bool isSet = *_inputRegister & _inputPinMask;
 
-                return true;
-            }
-        }
-        if (_port == 2)
+        if (isSet && doSet)
         {
-            if (button_down_c(_inputPinMask))
-            {
-                *_outputRegister ^= _outputPinMask;
-                _state = !_state;
-
-                return true;
-            }
-        }
-        else if (_port == 4)
-        {
-            if (button_down_d(_inputPinMask))
-            {
-                *_outputRegister ^= _outputPinMask;
-                _state = !_state;
-
-                return true;
-            }
+            Set(!_state);
         }
 
-        return false;
+        return isSet;
     }
 
     bool Get()
@@ -83,9 +55,11 @@ class ToggleSwitch
         return _state;
     }
 
-    void Set(bool isOn)
+    void Set(bool state)
     {
-        if (isOn)
+        _state = state;
+
+        if (state)
         {
             *_outputRegister |= _outputPinMask;
         }
@@ -99,7 +73,7 @@ class ToggleSwitch
 class ExclusiveToggleSwitchGroup
 {
   private:
-    static const int _maxSwitches = 3;
+    static const int _maxSwitches = 4;
 
     ToggleSwitch _switches[_maxSwitches];
     int _switchCount;
@@ -129,6 +103,20 @@ class ExclusiveToggleSwitchGroup
         _switchCount = 3;
     }
 
+    ExclusiveToggleSwitchGroup(
+        ToggleSwitch toggleSwitch1,
+        ToggleSwitch toggleSwitch2,
+        ToggleSwitch toggleSwitch3,
+        ToggleSwitch toggleSwitch4)
+    {
+        _switches[0] = toggleSwitch1;
+        _switches[1] = toggleSwitch2;
+        _switches[2] = toggleSwitch3;
+        _switches[3] = toggleSwitch4;
+
+        _switchCount = 4;
+    }
+
     bool Scan()
     {
         // set initial value as 'do-nothing' flag
@@ -136,7 +124,7 @@ class ExclusiveToggleSwitchGroup
 
         for (int i = 0; i < _switchCount; i++)
         {
-            if (_switches[i].Scan())
+            if (_switches[i].Scan(false))
             {
                 switchIndex = i;
                 break;

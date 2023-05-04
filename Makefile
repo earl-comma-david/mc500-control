@@ -21,7 +21,7 @@ all:
 
 # "/Users/earl/Library/Arduino15/packages/arduino/tools/avrdude/6.3.0-arduino17/bin/avrdude" "-C/Users/earl/Library/Arduino15/packages/arduino/tools/avrdude/6.3.0-arduino17/etc/avrdude.conf" -v -V -patmega328p -carduino "-P/dev/cu.usbserial-1" -b57600 -D "-Uflash:w:/private/var/folders/m2/xysfsq9540x63rwhkn89w13w0000gn/T/arduino-sketch-C58A843F5ED5AE9B4017FBCB01018F26/Blink.ino.hex:i"
 flash:
-	avrdude -c arduino -p ${MCU} -P /dev/cu.usbserial-1 -b57600 -U flash:w:${TARGET}.hex:i
+	avrdude -c arduino -p ${MCU} -P /dev/cu.usbserial-3 -b57600 -U flash:w:${TARGET}.hex:i
 	#/Users/earl/Library/Arduino15/packages/arduino/tools/avrdude/6.3.0-arduino17/bin/avrdude -C/Users/earl/Library/Arduino15/packages/arduino/tools/avrdude/6.3.0-arduino17/etc/avrdude.conf -v -v -v -v -c arduino -p ${MCU} -P /dev/cu.usbserial-1 -b57600 -U flash:w:${TARGET}.hex:i
 	#avrdude -v -v -v -v -c arduino -p ${MCU} -P /dev/cu.usbserial-1 -b115200 -U flash:w:${TARGET}.hex:i
 

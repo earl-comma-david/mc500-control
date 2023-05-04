@@ -61,3 +61,38 @@ void debounce_init(void)
     //// Enable pullup on buttons
     //BUTTON_PORT |= BUTTON_MASK;
 }
+
+#define MAX_CHECKS 24
+
+class Debouncer
+{
+  private:
+    uint16_t _state[MAX_CHECKS];
+    uint8_t _index;
+
+  public:
+    Debouncer()
+    {
+    }
+
+    void UpdateState(uint16_t value)
+    {
+        _state[_index++] = value;
+
+        if (_index >= MAX_CHECKS)
+        {
+            _index=0;
+        }
+    }
+
+    uint16_t Debounce(void)
+    {
+        uint16_t debouncedState = 0xffff;
+        for (uint8_t i=0; i<MAX_CHECKS; i++)
+        {
+            debouncedState = debouncedState & _state[i];
+        }
+
+        return debouncedState;
+    }
+};
