@@ -15,6 +15,7 @@ class ToggleSwitch
     // TODO: this can probably be obviated by a more clever use of the pin
     // value vs. the mask.
     bool _state = false;
+    bool _isDown = false;
 
     uint16_t _inputPinMask;
     uint16_t _outputPinMask;
@@ -41,6 +42,13 @@ class ToggleSwitch
     bool Scan(bool doSet = true)
     {
         bool isSet = *_inputRegister & _inputPinMask;
+
+        if (_isDown && isSet)
+        {
+            return isSet;
+        }
+
+        _isDown = isSet;
 
         if (isSet && doSet)
         {
@@ -80,6 +88,13 @@ class ExclusiveToggleSwitchGroup
 
   public:
     ExclusiveToggleSwitchGroup() {}
+
+    ExclusiveToggleSwitchGroup(ToggleSwitch toggleSwitch1)
+    {
+        _switches[0] = toggleSwitch1;
+
+        _switchCount = 1;
+    }
 
     ExclusiveToggleSwitchGroup(
         ToggleSwitch toggleSwitch1,
@@ -140,6 +155,12 @@ class ExclusiveToggleSwitchGroup
         {
             if (i == switchIndex)
             {
+                if (_switchCount == 1)
+                {
+                    _switches[i].Set(1 - _switches[i].Get());
+                    continue;
+                }
+
                 _switches[i].Set(true);
                 continue;
             }

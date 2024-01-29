@@ -32,6 +32,7 @@ class InputShiftRegister
         for (int i = 15; i >= 0; i--)
         {
             cycleClock();
+            // TODO: refactor to parameterize `PIND`
             word |= ((uint8_t) bit_is_set(PIND, PIN_SER) > 0) << i;
             shiftOffsetDelay(15-i);
         }

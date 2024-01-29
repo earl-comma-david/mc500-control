@@ -8,18 +8,18 @@
 #include <stdbool.h>
 #include <string.h> 
 #include <util/delay.h>
-#include "debounce.h"
+//#include "debounce.h"
 #include "debounce.cpp"
 #include "rotary.h"
 #include "rotary.cpp"
 #include "ShiftRegister.cpp"
 #include "InputShiftRegister.cpp"
 #include "ToggleSwitch.cpp"
+#include "FooToggleSwitch.cpp"
 #include "twi-master.h"
 #include "twi-master.c"
 #include "config.h"
 
-#define COUNTER 65500;
 #define AUDIO_SLAVE_ADDRESS 0x10
 #define DIM_OFFSET 16
 
@@ -27,22 +27,25 @@ volatile uint16_t _commandWord = 0;
 volatile uint16_t _switchState = 0b0100000001000000;
 volatile uint8_t _attenuationHP = 127;
 volatile uint8_t _attenuationMain = 127;
-volatile bool IsDim = false;
-volatile bool DoScan;
-
-//uint16_t Debounced_State; // Debounced state of the switches
+volatile bool _doScan;
 
 InputShiftRegister _inputShiftRegister;
 Debouncer _debouncer;
 
-ISR (TIMER1_OVF_vect)
+ISR (TIMER0_OVF_vect)
 {
-    DoScan = true;
+    _doScan = true;
 
-	TCNT1 = COUNTER;
-
-    _debouncer.UpdateState(_inputShiftRegister.read());
+    _commandWord = _debouncer.UpdateState(_inputShiftRegister.read());
+    //_debouncer.UpdateState(_inputShiftRegister.read());
 }
+
+//ISR (TIMER1_OVF_vect)
+//{
+//    _doScan = true;
+//
+//    _debouncer.UpdateState(_inputShiftRegister.read());
+//}
 
 void rotary_handler_0()
 {
@@ -132,10 +135,17 @@ ISR (PCINT1_vect)
 
 void timer_init(void)
 {
-    TCNT1 = COUNTER; // for 1 sec at 16 MHz	
-	TCCR1A = 0x00;
-	TCCR1B = (1<<CS10) | (1<<CS12);  // Timer mode with 1024 prescler
-	TIMSK1 = (1 << TOIE1) ;
+    ////TCNT1 = COUNTER; 	
+	//TCCR1A = 0x00;
+	//TCCR1B = (1<<CS10);
+	//TIMSK1 = (1 << TOIE1) ;
+
+    // F_int = F_clk/(2*prescalar*256)
+    // F_int = 16000000/64*256 // TODO: should there be a factor of two in the denominator?
+    // F_int = 977Hz -> P = 0.00102
+	TCCR0A = 0x00;                  // normal mode
+	TCCR0B = (1<<CS01) | (1<<CS00); // prescalar: 64
+	TIMSK0 = (1 << TOIE0) ;         // Timer 0 overflow interrupt enable
 }
  
 void pin_change_interrupt_init(void)
@@ -162,7 +172,7 @@ void init_io_pins(void)
     // outputs
     DDRC |= (1<<PC3);
     DDRC |= (1<<PC2);
-    DDRD |= (1<<PD1);
+    DDRC |= (1<<PC1);
 
     DDRD |= (1<<PD2);
     DDRD |= (1<<PD3);
@@ -174,14 +184,11 @@ void init_io_pins(void)
     DDRB &= ~(1 << PINB2);
     DDRB &= ~(1 << PINB1);
     DDRB &= ~(1 << PINB0);
-    DDRC &= ~(1 << PINC1);
     DDRC &= ~(1 << PINC0);
     DDRD &= ~(1 << PIND7);
     DDRD &= ~(1 << PIND6);
     DDRD &= ~(1 << PIND5);
     DDRD &= ~(1 << PIND4);
-    //DDRD &= ~(1 << PIND3);
-    //DDRD &= ~(1 << PIND2);
 }
 
 void init(void)
@@ -215,74 +222,82 @@ int main (void)
         ToggleSwitch(&_commandWord, 5, &_switchState, 5),
         ToggleSwitch(&_commandWord, 4, &_switchState, 4));
     ToggleSwitch subSwitch = ToggleSwitch(&_commandWord, 3, &_switchState, 3);
+    ToggleSwitch someSwitch = ToggleSwitch(&_commandWord, 2, &_switchState, 2);
 
-    ShiftRegister shiftRegister = ShiftRegister();
+    // `outputShiftRegister` shifts out _switchState to drive indication LEDs
+    ShiftRegister outputShiftRegister = ShiftRegister(&PORTC, PC3, PC2, PC1);
 	
     uint16_t lastSwitchState = 0;
     uint8_t lastAttenuationMain = 0;
     int txCounter = 0;
-    bool doShift = false;
+    bool doShiftOut = false;
     bool doI2cTx = false;
 
     int i = 0;
 
     while (true)
     {
-        if (DoScan)
+        //if (!_doScan)
+        //{
+        //    continue;
+        //}
+        if (_doScan)
         {
-            DoScan = false;
+            _doScan = false;
 
-            _commandWord = _debouncer.Debounce();
+            //_commandWord = _debouncer.Debounce();
 
+            // switches scan `_commandWord` and put the results in `_switchState`.
             inputSwitchGroup.Scan();
             monoSwitch.Scan();
             dimSwitch.Scan();
             outputSwitchGroup.Scan();
             subSwitch.Scan();
+            someSwitch.Scan();
+        }
 
-            if (txCounter++ % 16 == 0)
+        //if (txCounter++ % 16 == 0)
+        //{
+            if (_switchState != lastSwitchState)
             {
-                if (_switchState != lastSwitchState)
-                {
-                    lastSwitchState = _switchState;
-                    doShift = true;
-                    doI2cTx = true;
-                }
-                
-                uint8_t attenuationMain = lastAttenuationMain;
+                lastSwitchState = _switchState;
+                doShiftOut = true;
+                doI2cTx = true;
+            }
+            
+            uint8_t attenuationMain = lastAttenuationMain;
 
-                if (_attenuationMain != lastAttenuationMain)
-                {
-                    attenuationMain = lastAttenuationMain = _attenuationMain;
-                    doI2cTx = true;
-                }
+            if (_attenuationMain != lastAttenuationMain)
+            {
+                attenuationMain = lastAttenuationMain = _attenuationMain;
+                doI2cTx = true;
+            }
 
-                if (dimSwitch.Get())
+            if (dimSwitch.Get())
+            {
+                if (attenuationMain + DIM_OFFSET > 127)
                 {
-                    if (attenuationMain + DIM_OFFSET > 127)
-                    {
-                        attenuationMain = 127;
-                    }
-                    else
-                    {
-                        attenuationMain = attenuationMain+DIM_OFFSET;
-                    }
+                    attenuationMain = 127;
                 }
-
-                if (doI2cTx)
+                else
                 {
-                    uint8_t data[3] = { attenuationMain, static_cast<uint8_t>((lastSwitchState & 0xff00) >> 8), static_cast<uint8_t>(lastSwitchState & 0x00ff) };
-                    tw_master_transmit(AUDIO_SLAVE_ADDRESS, data, sizeof(data), false);
-                    doI2cTx = false;
-                }
-
-                if (doShift)
-                {
-                    shiftRegister.shiftOut(lastSwitchState);
-                    doShift = false;
+                    attenuationMain = attenuationMain+DIM_OFFSET;
                 }
             }
-        }
+
+            //if (doI2cTx)
+            //{
+            //    uint8_t data[3] = { attenuationMain, static_cast<uint8_t>((lastSwitchState & 0xff00) >> 8), static_cast<uint8_t>(lastSwitchState & 0x00ff) };
+            //    tw_master_transmit(AUDIO_SLAVE_ADDRESS, data, sizeof(data), false);
+            //    doI2cTx = false;
+            //}
+
+            if (doShiftOut)
+            {
+                outputShiftRegister.shiftOut(lastSwitchState);
+                doShiftOut = false;
+            }
+        //}
     }
 
     return 0;
