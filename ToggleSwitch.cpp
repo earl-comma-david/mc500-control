@@ -1,7 +1,4 @@
 #include <avr/io.h>
-#include <avr/interrupt.h>
-#include <util/delay.h>
-#include "debounce.h"
 
 class ToggleSwitch
 {
