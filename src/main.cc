@@ -8,13 +8,12 @@
 #include <stdbool.h>
 #include <string.h> 
 #include "config.h"
-#include "twi-master.h"
-#include "twi-master.c"
-#include "Debouncer.cpp"
-#include "RotaryEncoder.cpp"
-#include "InputShiftRegister.cpp"
-#include "OutputShiftRegister.cpp"
-#include "ToggleSwitch.cpp"
+#include "include/twi-master.h"
+#include "include/debouncer.h"
+#include "include/rotary_encoder.h"
+#include "include/input_shift_register.h"
+#include "include/output_shift_register.h"
+#include "include/toggle_switch.h"
 
 #define AUDIO_SLAVE_ADDRESS 0x10
 #define DIM_OFFSET 16
@@ -113,20 +112,20 @@ void init(void)
 
 int main (void)
 {
-    ExclusiveToggleSwitchGroup inputSwitchGroup = ExclusiveToggleSwitchGroup(
-        ToggleSwitch(&_commandWord, 14, &_switchState, 14),
-        ToggleSwitch(&_commandWord, 13, &_switchState, 13),
-        ToggleSwitch(&_commandWord, 12, &_switchState, 12),
-        ToggleSwitch(&_commandWord, 11, &_switchState, 11));
-    ToggleSwitch monoSwitch = ToggleSwitch(&_commandWord, 10, &_switchState, 10);
-    ToggleSwitch dimSwitch = ToggleSwitch(&_commandWord, 1, &_switchState, 1);
+    ExclusiveToggleSwitchGroup<uint16_t, uint16_t> inputSwitchGroup = ExclusiveToggleSwitchGroup<uint16_t, uint16_t>(
+        ToggleSwitch<uint16_t, uint16_t>(&_commandWord, 14, &_switchState, 14),
+        ToggleSwitch<uint16_t, uint16_t>(&_commandWord, 13, &_switchState, 13),
+        ToggleSwitch<uint16_t, uint16_t>(&_commandWord, 12, &_switchState, 12),
+        ToggleSwitch<uint16_t, uint16_t>(&_commandWord, 11, &_switchState, 11));
+    ToggleSwitch<uint16_t, uint16_t> monoSwitch = ToggleSwitch<uint16_t, uint16_t>(&_commandWord, 10, &_switchState, 10);
+    ToggleSwitch<uint16_t, uint16_t> dimSwitch = ToggleSwitch<uint16_t, uint16_t>(&_commandWord, 1, &_switchState, 1);
 
-    ExclusiveToggleSwitchGroup outputSwitchGroup = ExclusiveToggleSwitchGroup(
-        ToggleSwitch(&_commandWord, 6, &_switchState, 6),
-        ToggleSwitch(&_commandWord, 5, &_switchState, 5),
-        ToggleSwitch(&_commandWord, 4, &_switchState, 4));
-    ToggleSwitch subSwitch = ToggleSwitch(&_commandWord, 3, &_switchState, 3);
-    ToggleSwitch someSwitch = ToggleSwitch(&_commandWord, 2, &_switchState, 2);
+    ExclusiveToggleSwitchGroup<uint16_t, uint16_t> outputSwitchGroup = ExclusiveToggleSwitchGroup<uint16_t, uint16_t>(
+        ToggleSwitch<uint16_t, uint16_t>(&_commandWord, 6, &_switchState, 6),
+        ToggleSwitch<uint16_t, uint16_t>(&_commandWord, 5, &_switchState, 5),
+        ToggleSwitch<uint16_t, uint16_t>(&_commandWord, 4, &_switchState, 4));
+    ToggleSwitch<uint16_t, uint16_t> subSwitch = ToggleSwitch<uint16_t, uint16_t>(&_commandWord, 3, &_switchState, 3);
+    ToggleSwitch<uint16_t, uint16_t> someSwitch = ToggleSwitch<uint16_t, uint16_t>(&_commandWord, 2, &_switchState, 2);
 
     // `outputShiftRegister` shifts out _switchState to drive indication LEDs
     OutputShiftRegister outputShiftRegister = OutputShiftRegister(&PORTB, PB4, PB3, PB2);
@@ -193,7 +192,12 @@ int main (void)
 
         if (doI2cTx || (_doScan && executionStartupCounter < executionStartupWindow))
         {
-            uint8_t data[3] = { attenuationMain, static_cast<uint8_t>((lastSwitchState & 0xff00) >> 8), static_cast<uint8_t>(lastSwitchState & 0x00ff) };
+            uint8_t data[3] =
+            {
+                attenuationMain,
+                static_cast<uint8_t>((lastSwitchState & 0xff00) >> 8),
+                static_cast<uint8_t>(lastSwitchState & 0x00ff)
+            };
             tw_master_transmit(AUDIO_SLAVE_ADDRESS, data, sizeof(data), false);
             doI2cTx = false;
         }
