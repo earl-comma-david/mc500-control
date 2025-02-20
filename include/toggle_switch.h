@@ -1,12 +1,13 @@
 #include <avr/io.h>
 
+template <typename TInputRegister, typename TOutputRegister>
 class ToggleSwitch
 {
   private:
 
-    volatile uint16_t* _inputRegister;
+    volatile TInputRegister* _inputRegister;
     uint8_t _inputPin;
-    volatile uint16_t* _outputRegister;
+    volatile TOutputRegister* _outputRegister;
     uint8_t _outputPin;
 
     // TODO: this can probably be obviated by a more clever use of the pin
@@ -14,15 +15,15 @@ class ToggleSwitch
     bool _state = false;
     bool _isDown = false;
 
-    uint16_t _inputPinMask;
-    uint16_t _outputPinMask;
+    TInputRegister _inputPinMask;
+    TOutputRegister _outputPinMask;
 
   public:
 
     ToggleSwitch() {}
 
     ToggleSwitch(
-        volatile uint16_t* inputRegister,
+        volatile TInputRegister* inputRegister,
         uint8_t inputPin,
         volatile uint16_t* outputRegister,
         uint8_t outputPin)
@@ -75,18 +76,19 @@ class ToggleSwitch
     }
 };
 
+template <typename TInputRegister, typename TOutputRegister>
 class ExclusiveToggleSwitchGroup
 {
   private:
     static const int _maxSwitches = 4;
 
-    ToggleSwitch _switches[_maxSwitches];
+    ToggleSwitch<TInputRegister, TOutputRegister> _switches[_maxSwitches];
     int _switchCount;
 
   public:
     ExclusiveToggleSwitchGroup() {}
 
-    ExclusiveToggleSwitchGroup(ToggleSwitch toggleSwitch1)
+    ExclusiveToggleSwitchGroup(ToggleSwitch<TInputRegister, TOutputRegister> toggleSwitch1)
     {
         _switches[0] = toggleSwitch1;
 
@@ -94,8 +96,8 @@ class ExclusiveToggleSwitchGroup
     }
 
     ExclusiveToggleSwitchGroup(
-        ToggleSwitch toggleSwitch1,
-        ToggleSwitch toggleSwitch2)
+        ToggleSwitch<TInputRegister, TOutputRegister> toggleSwitch1,
+        ToggleSwitch<TInputRegister, TOutputRegister> toggleSwitch2)
     {
         _switches[0] = toggleSwitch1;
         _switches[1] = toggleSwitch2;
@@ -104,9 +106,9 @@ class ExclusiveToggleSwitchGroup
     }
 
     ExclusiveToggleSwitchGroup(
-        ToggleSwitch toggleSwitch1,
-        ToggleSwitch toggleSwitch2,
-        ToggleSwitch toggleSwitch3)
+        ToggleSwitch<TInputRegister, TOutputRegister> toggleSwitch1,
+        ToggleSwitch<TInputRegister, TOutputRegister> toggleSwitch2,
+        ToggleSwitch<TInputRegister, TOutputRegister> toggleSwitch3)
     {
         _switches[0] = toggleSwitch1;
         _switches[1] = toggleSwitch2;
@@ -116,10 +118,10 @@ class ExclusiveToggleSwitchGroup
     }
 
     ExclusiveToggleSwitchGroup(
-        ToggleSwitch toggleSwitch1,
-        ToggleSwitch toggleSwitch2,
-        ToggleSwitch toggleSwitch3,
-        ToggleSwitch toggleSwitch4)
+        ToggleSwitch<TInputRegister, TOutputRegister> toggleSwitch1,
+        ToggleSwitch<TInputRegister, TOutputRegister> toggleSwitch2,
+        ToggleSwitch<TInputRegister, TOutputRegister> toggleSwitch3,
+        ToggleSwitch<TInputRegister, TOutputRegister> toggleSwitch4)
     {
         _switches[0] = toggleSwitch1;
         _switches[1] = toggleSwitch2;
