@@ -43,7 +43,13 @@ class InputShiftRegister
         {
             cycleClock();
 
-            word |= ((uint8_t) bit_is_set(*_inputRegister, _pinSer) > 0) << i;
+            uint8_t input = *_inputRegister;
+
+            uint16_t bis = input & (1 << _pinSer);
+            //uint16_t bis = bit_is_set(_inputRegister, _pinSer);
+            //uint16_t bis = bit_is_set(_inputRegister, _pinSer);
+
+            word |= ((uint8_t) bis > 0) << i;
         }
 
         return word;

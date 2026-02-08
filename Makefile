@@ -1,22 +1,37 @@
 TARGET = mc500-control
-SRCS=src/twi-master.c src/uart.c src/main.cc
+SRCS=src/main.cc
+OBJS   = $(SRCS:.cc=.o)
 
 MCU   = atmega328p
 F_CPU = 16000000UL  
 BAUD  = 9600UL
-CPPFLAGS = -DF_CPU=$(F_CPU) -DBAUD=$(BAUD) -I. 
 
-CC = avr-g++
+FLASH_PORT = /dev/cu.usbserial-3
+FLASH_BAUD = 57600
+
+CXXFLAGS = -std=gnu++17 -Wall -g -Os -mmcu=$(MCU) -DF_CPU=$(F_CPU) -DBAUD=$(BAUD) -I.
+LDFLAGS  = -mmcu=$(MCU)
+
+CXX = avr-g++
 OBJCOPY = avr-objcopy
-CFLAGS=-std=c99 -Wall -g -Os -mmcu=${MCU} -DF_CPU=${F_CPU} -I.
+AVRDUDE  = avrdude
 
+all: $(TARGET).hex
 
-all:
-	${CC} ${CFLAGS} -o ${TARGET}.o ${SRCS}
-	${OBJCOPY} -j .text -j .data -O ihex ${TARGET}.o ${TARGET}.hex
+%.o: %.cc
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-flash:
-	avrdude -c arduino -p ${MCU} -P /dev/cu.usbserial-3 -b57600 -U flash:w:${TARGET}.hex:i
+$(TARGET).elf: $(OBJS)
+	$(CXX) $(LDFLAGS) -o $@ $^
+
+$(TARGET).hex: $(TARGET).elf
+	$(OBJCOPY) -j .text -j .data -O ihex $< $@
+
+flash: $(TARGET).hex
+	$(AVRDUDE) -c arduino -p $(MCU) -P $(FLASH_PORT) -b $(FLASH_BAUD) -U flash:w:$<:i
+
+flash-read:
+	$(AVRDUDE) -c arduino -p $(MCU) -P $(FLASH_PORT) -b $(FLASH_BAUD) -U flash:r:$(TARGET).device.hex:i
 
 clean:
-	rm -f *.o *.hex
+	rm -f $(OBJS) $(TARGET).elf $(TARGET).hex

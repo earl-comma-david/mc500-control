@@ -7,13 +7,13 @@
 #include <avr/pgmspace.h>
 #include <stdbool.h>
 #include <string.h> 
-#include "config.h"
-#include "include/twi-master.h"
-#include "include/debouncer.h"
-#include "include/rotary_encoder.h"
-#include "include/input_shift_register.h"
-#include "include/output_shift_register.h"
-#include "include/toggle_switch.h"
+#include "../config.h"
+#include "../include/twi-master.h"
+#include "../include/debouncer.h"
+#include "../include/rotary_encoder.h"
+#include "../include/input_shift_register.h"
+#include "../include/output_shift_register.h"
+#include "../include/toggle_switch.h"
 
 #define AUDIO_SLAVE_ADDRESS 0x10
 #define DIM_OFFSET 16

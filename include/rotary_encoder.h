@@ -34,8 +34,16 @@ class RotaryEncoder
       void Scan()
       {
           _state = (_state<<2) & 0x0f;
+
+          // original (working?) line that I don't understand
           uint8_t input = *_inputRegister;
-          _state |= bit_is_clear(input, _inputPin1)<<1 | bit_is_clear(input, _inputPin0);
+
+          bool foo = !(input & (1 << _inputPin1));
+          bool bar = !(input & (1 << _inputPin0));
+          _state |= (foo << 1) | bar;
+
+          // original working line:
+          //_state |= bit_is_clear(input, _inputPin1)<<1 | bit_is_clear(input, _inputPin0);
 
           _encVal += _encStates[_state];
 
