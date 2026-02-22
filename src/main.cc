@@ -20,14 +20,14 @@
 
 volatile uint16_t _commandWord = 0;
 volatile uint16_t _switchState = 0b0100000001000000;
-volatile uint8_t _attenuationHP = 127;
+volatile uint8_t _attenuationPhones = 127;
 volatile uint8_t _attenuationMain = 127;
 volatile bool _doScan;
 
 InputShiftRegister _inputShiftRegister;
 Debouncer _debouncer;
 RotaryEncoder _rotaryEncoderMain;
-RotaryEncoder _rotaryEncoderCue;
+RotaryEncoder _rotaryEncoderPhones;
 
 volatile int testCounter = 0;
 
@@ -48,13 +48,13 @@ ISR (PCINT0_vect)
 // read cue rotary encoder upon pin change interrupt
 ISR (PCINT1_vect)
 {
-    _rotaryEncoderCue.Scan();
+    _rotaryEncoderPhones.Scan();
 }
 
 void timer_init(void)
 {
     // F_int = F_clk/(2*prescalar*256)
-    // F_int = 16000000/64*256 // TODO: should there be a factor of two in the denominator?
+    // F_int = 16000000/(64*256)
     // F_int = 977Hz -> P = 0.00102
 	TCCR0A = 0x00;                  // normal mode
 	TCCR0B = (1<<CS01) | (1<<CS00); // prescalar: 64
@@ -102,8 +102,7 @@ void init(void)
     UCSR0B = 0;
 
     _rotaryEncoderMain = RotaryEncoder(&PINB, PINB1, PINB0, &_attenuationMain);
-    _rotaryEncoderCue = RotaryEncoder(&PINC, PINC1, PINC0, &_attenuationMain);
-    //_rotaryEncoderCue = RotaryEncoder(&PINC, PINC1, PINC0, &_attenuationCue);
+    _rotaryEncoderPhones = RotaryEncoder(&PINC, PINC1, PINC0, &_attenuationMain);//&_attenuationPhones);
     _inputShiftRegister = InputShiftRegister(&PIND, PD4, &PORTD, PD2, PD3);
     _debouncer = Debouncer();
 
@@ -112,6 +111,7 @@ void init(void)
 
 int main (void)
 {
+    // 
     ExclusiveToggleSwitchGroup<uint16_t, uint16_t> inputSwitchGroup = ExclusiveToggleSwitchGroup<uint16_t, uint16_t>(
         ToggleSwitch<uint16_t, uint16_t>(&_commandWord, 14, &_switchState, 14),
         ToggleSwitch<uint16_t, uint16_t>(&_commandWord, 13, &_switchState, 13),
@@ -132,9 +132,9 @@ int main (void)
 	
     uint16_t lastSwitchState = 0;
     uint8_t lastAttenuationMain = 0;
+    uint8_t lastAttenuationPhones = 0;
     int txCounter = 0;
     bool doShiftOut = false;
-    bool doI2cTx = false;
 
     int executionStartupCounter = 0;
     int executionStartupWindow = 4;
@@ -167,15 +167,21 @@ int main (void)
         {
             lastSwitchState = _switchState;
             doShiftOut = true;
-            doI2cTx = true;
         }
         
         uint8_t attenuationMain = lastAttenuationMain;
+        uint8_t attenuationPhones = lastAttenuationPhones;
 
         if (_attenuationMain != lastAttenuationMain)
         {
             attenuationMain = lastAttenuationMain = _attenuationMain;
-            doI2cTx = true;
+            doShiftOut = true;
+        }
+
+        if (_attenuationPhones != lastAttenuationPhones)
+        {
+            attenuationPhones = lastAttenuationPhones = _attenuationPhones;
+            doShiftOut = true;
         }
 
         if (dimSwitch.Get())
@@ -188,23 +194,24 @@ int main (void)
             {
                 attenuationMain = attenuationMain+DIM_OFFSET;
             }
-        }
-
-        if (doI2cTx || (_doScan && executionStartupCounter < executionStartupWindow))
-        {
-            uint8_t data[3] =
+            if (attenuationPhones + DIM_OFFSET > 127)
             {
-                attenuationMain,
-                static_cast<uint8_t>((lastSwitchState & 0xff00) >> 8),
-                static_cast<uint8_t>(lastSwitchState & 0x00ff)
-            };
-            tw_master_transmit(AUDIO_SLAVE_ADDRESS, data, sizeof(data), false);
-            doI2cTx = false;
+                attenuationPhones = 127;
+            }
+            else
+            {
+                attenuationPhones = attenuationPhones+DIM_OFFSET;
+            }
         }
 
         if (doShiftOut)
         {
-            outputShiftRegister.shiftOut(lastSwitchState);
+            outputShiftRegister.shiftOut((uint8_t) (127 - attenuationMain), lastSwitchState);
+            // TODO:
+            //outputShiftRegister.shiftOut((uint8_t) (127 - attenuationMain), (uint8_t) (127 - attenuationPhones), lastSwitchState);
+            // or
+            //outputShiftRegister.shiftOut(inputSwitchState, (uint8_t) (127 - attenuationMain), (uint8_t) (127 - attenuationPhones), outputSwitchState);
+
             doShiftOut = false;
         }
 

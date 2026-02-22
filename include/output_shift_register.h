@@ -54,4 +54,21 @@ class OutputShiftRegister
 
         latch();
     }
+
+    void shiftOut(uint8_t toPutFirst, uint16_t toPutLast)
+    {
+        uint8_t i;
+
+        for(i = 0; i < 8; i++) {
+            putBit(toPutFirst & 1);
+            toPutFirst >>= 1;
+        }
+
+        for(i = 0; i < 16; i++) {
+            putBit(toPutLast & 1);
+            toPutLast >>= 1;
+        }
+
+        latch();
+    }
 };

@@ -9,7 +9,7 @@ BAUD  = 9600UL
 FLASH_PORT = /dev/cu.usbserial-3
 FLASH_BAUD = 57600
 
-CXXFLAGS = -std=gnu++17 -Wall -g -Os -mmcu=$(MCU) -DF_CPU=$(F_CPU) -DBAUD=$(BAUD) -I.
+CXXFLAGS = -std=gnu++17 -Wall -g -Os -mmcu=$(MCU) -DF_CPU=$(F_CPU) -DBAUD=$(BAUD) -I. -MMD -MP
 LDFLAGS  = -mmcu=$(MCU)
 
 CXX = avr-g++
@@ -34,4 +34,6 @@ flash-read:
 	$(AVRDUDE) -c arduino -p $(MCU) -P $(FLASH_PORT) -b $(FLASH_BAUD) -U flash:r:$(TARGET).device.hex:i
 
 clean:
-	rm -f $(OBJS) $(TARGET).elf $(TARGET).hex
+	rm -f $(OBJS) $(OBJS:.o=.d) $(TARGET).elf $(TARGET).hex
+
+-include $(OBJS:.o=.d)
