@@ -6,7 +6,7 @@ MCU   = atmega328p
 F_CPU = 16000000UL  
 BAUD  = 9600UL
 
-FLASH_PORT = /dev/cu.usbserial-3
+FLASH_PORT = /dev/cu.usbserial-AB0O4PX8
 FLASH_BAUD = 57600
 
 CXXFLAGS = -std=gnu++17 -Wall -g -Os -mmcu=$(MCU) -DF_CPU=$(F_CPU) -DBAUD=$(BAUD) -I. -MMD -MP

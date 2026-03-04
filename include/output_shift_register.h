@@ -44,6 +44,17 @@ class OutputShiftRegister
         _pinClk = pinClk;
     }
 
+    void shiftOut(uint8_t toPut)
+    {
+        uint8_t i;
+        for(i = 0; i < 8; i++) {
+            putBit(toPut & 1);
+            toPut >>= 1;
+        }
+
+        latch();
+    }
+
     void shiftOut(uint16_t toPut)
     {
         uint8_t i;
