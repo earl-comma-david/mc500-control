@@ -12,24 +12,28 @@
 #include "../include/rotary_encoder.h"
 #include "../include/input_shift_register.h"
 #include "../include/output_shift_register.h"
+#include "../include/seven_segment_display.h"
 #include "../include/toggle_switch.h"
 
 #define AUDIO_SLAVE_ADDRESS 0x10
-#define DIM_OFFSET 16
+#define DIM_OFFSET 12
+
+uint16_t _attenuationStepsDisplay[] = { 60, 57, 48, 41, 36, 32, 29, 27, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 13, 11, 8, 5, 0 };
+uint16_t _attenuationStepsRelays[]  = {  0,  8, 16, 24, 32, 40, 48, 56, 64, 72, 74, 76, 78, 80, 100, 104, 110, 115, 120, 120, 120, 124, 124, 127 };
 
 volatile uint16_t _commandWord = 0;
 volatile uint16_t _switchState = 0b0100000001000000;
-volatile uint8_t _displayState = 0;//b11111111;
-volatile uint8_t _attenuationPhones = 127;
-volatile uint8_t _attenuationMain = 127;
+volatile uint8_t _attenuationStepPhones = 0;
+volatile uint8_t _attenuationStepMain = 0;
 volatile bool _doScan;
 
 InputShiftRegister _inputShiftRegister;
 Debouncer _debouncer;
 RotaryEncoder _rotaryEncoderMain;
 RotaryEncoder _rotaryEncoderPhones;
+SevenSegmentDisplay _sevenSegment;
 
-volatile int testCounter = 0;
+volatile int _seventSegmentScalerCounter = 0;
 
 // read input shift register every 1ms
 ISR (TIMER0_OVF_vect)
@@ -37,6 +41,11 @@ ISR (TIMER0_OVF_vect)
     _commandWord = _debouncer.UpdateState(_inputShiftRegister.read());
 
     _doScan = true;
+
+    // 10 is right on the edge of perceivable; 8 might be better
+    if (_seventSegmentScalerCounter++ % 10 == 0) {
+        _sevenSegment.Update();
+    }
 }
 
 // read main rotary encoder upon pin change interrupt
@@ -53,11 +62,11 @@ ISR (PCINT1_vect)
 
 void timer_init(void)
 {
-    // F_int = F_clk/(2*prescalar*256)
+    // F_int = F_clk/(prescaler*256)
     // F_int = 16000000/(64*256)
     // F_int = 977Hz -> P = 0.00102
     TCCR0A = 0x00;                  // normal mode
-    TCCR0B = (1<<CS01) | (1<<CS00); // prescalar: 64
+    TCCR0B = (1<<CS01) | (1<<CS00); // prescaler: 64
     TIMSK0 = (1 << TOIE0) ;         // Timer 0 overflow interrupt enable
 }
  
@@ -102,10 +111,11 @@ void init(void)
 
     UCSR0B = 0;
 
-    _rotaryEncoderMain = RotaryEncoder(&PINB, PINB1, PINB0, &_attenuationMain);
-    _rotaryEncoderPhones = RotaryEncoder(&PINC, PINC1, PINC0, &_attenuationMain);//&_attenuationPhones);
+    _rotaryEncoderMain = RotaryEncoder(&PINB, PINB1, PINB0, &_attenuationStepMain, 0, 24);
+    _rotaryEncoderPhones = RotaryEncoder(&PINC, PINC1, PINC0, &_attenuationStepMain, 0, 24);//&_attenuationPhones);
     _inputShiftRegister = InputShiftRegister(&PIND, PIND4, &PORTD, PD2, PD3);
     _debouncer = Debouncer();
+    _sevenSegment = SevenSegmentDisplay(&PORTC, PC2, PC3, OutputShiftRegister(&PORTD, PD7, PD6, PD5));
 
 	sei();
 }
@@ -127,21 +137,16 @@ int main (void)
         ToggleSwitch<uint16_t, uint16_t>(&_commandWord, 5, &_switchState, 4));
     ToggleSwitch<uint16_t, uint16_t> sysSwitch = ToggleSwitch<uint16_t, uint16_t>(&_commandWord, 4, &_switchState, 7);
 
-    // `outputShiftRegister` shifts out _switchState to drive IO and attenuation Relays 
+    // `ioSR` shifts out _switchState to drive IO and attenuation Relays 
     OutputShiftRegister ioSR = OutputShiftRegister(&PORTB, PB4, PB3, PB2);
-    // `outputSR` shifts out _switchState to drive IO Relays 
-    OutputShiftRegister displaySR = OutputShiftRegister(&PORTD, PD7, PD6, PD5);
-	
+
     uint16_t lastSwitchState = 0;
-    uint8_t lastAttenuationMain = 0;
-    uint8_t lastAttenuationPhones = 0;
+    uint8_t lastAttenuationStepMain = 127;
+    uint8_t lastAttenuationStepPhones = 127;
     bool doShiftOutIo = false;
-    bool doShiftOutDisplay = false;
 
     int executionStartupCounter = 0;
     int executionStartupWindow = 4;
-
-    uint16_t fooCounter = 0;
 
     init();
 
@@ -163,23 +168,8 @@ int main (void)
                 dimSwitch.Scan();
                 outputSwitchGroup.Scan();
                 sysSwitch.Scan();
-
-                if (executionStartupCounter++ % 8 == 0) {
-                    _displayState += 1;
-
-                    if (_displayState & 8) {
-
-                        PORTC |= (1<<PC3);
-                        PORTC &= ~(1<<PC2);
-                    } else {
-                        PORTC &= ~(1<<PC3);
-                        PORTC |= (1<<PC2);
-                    }
-                }
-                doShiftOutDisplay = true;
             }
         }
-
 
         if (_switchState != lastSwitchState)
         {
@@ -187,55 +177,45 @@ int main (void)
             doShiftOutIo = true;
         }
         
-        uint8_t attenuationMain = lastAttenuationMain;
-        uint8_t attenuationPhones = lastAttenuationPhones;
+        uint8_t attenuationStepMain = lastAttenuationStepMain;
+        uint8_t attenuationStepPhones = lastAttenuationStepPhones;
 
-        if (_attenuationMain != lastAttenuationMain)
+        if (_attenuationStepMain != lastAttenuationStepMain)
         {
-            attenuationMain = lastAttenuationMain = _attenuationMain;
+            attenuationStepMain = lastAttenuationStepMain = _attenuationStepMain;
             doShiftOutIo = true;
         }
 
-        if (_attenuationPhones != lastAttenuationPhones)
+        if (_attenuationStepPhones != lastAttenuationStepPhones)
         {
-            attenuationPhones = lastAttenuationPhones = _attenuationPhones;
+            attenuationStepPhones = lastAttenuationStepPhones = _attenuationStepPhones;
             doShiftOutIo = true;
         }
 
         if (dimSwitch.Get())
         {
-            if (attenuationMain + DIM_OFFSET > 127)
-            {
-                attenuationMain = 127;
-            }
+            if (attenuationStepMain < DIM_OFFSET)
+                attenuationStepMain = 0;
             else
-            {
-                attenuationMain = attenuationMain+DIM_OFFSET;
-            }
-            if (attenuationPhones + DIM_OFFSET > 127)
-            {
-                attenuationPhones = 127;
-            }
+                attenuationStepMain -= DIM_OFFSET;
+
+            if (attenuationStepPhones < DIM_OFFSET)
+                attenuationStepPhones = 0;
             else
-            {
-                attenuationPhones = attenuationPhones+DIM_OFFSET;
-            }
+                attenuationStepPhones -= DIM_OFFSET;
         }
 
         if (doShiftOutIo)
         {
-            ioSR.shiftOut((uint8_t) (127 - attenuationMain), lastSwitchState);
+            ioSR.shiftOut(_attenuationStepsRelays[attenuationStepMain], lastSwitchState);
+            //ioSR.shiftOut((uint8_t) (127 - attenuationMain), lastSwitchState);
             // TODO:
             //outputShiftRegister.shiftOut((uint8_t) (127 - attenuationMain), (uint8_t) (127 - attenuationPhones), lastSwitchState);
             // or
             //outputShiftRegister.shiftOut(inputSwitchState, (uint8_t) (127 - attenuationMain), (uint8_t) (127 - attenuationPhones), outputSwitchState);
             doShiftOutIo = false;
-        }
 
-        if (doShiftOutDisplay)
-        {
-            displaySR.shiftOut(_displayState);
-            doShiftOutDisplay = false;
+            _sevenSegment.setValue(_attenuationStepsDisplay[attenuationStepMain]);
         }
 
         _doScan = false;

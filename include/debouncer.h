@@ -1,3 +1,5 @@
+#pragma once
+
 #include <avr/io.h>
 
 #define MAX_CHECKS 24

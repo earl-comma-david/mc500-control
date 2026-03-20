@@ -1,3 +1,5 @@
+#pragma once
+
 #include <avr/io.h>
 
 class RotaryEncoder
@@ -10,6 +12,8 @@ class RotaryEncoder
         uint8_t _inputPin0;
         uint8_t _inputPin1;
         volatile uint8_t* _stateRegister;
+        uint8_t _lowerLimit;
+        uint8_t _upperLimit;
 
     public:
       RotaryEncoder()
@@ -20,12 +24,16 @@ class RotaryEncoder
         volatile uint8_t* inputRegister,
         uint8_t inputPin0,
         uint8_t inputPin1,
-        volatile uint8_t* stateRegister)
+        volatile uint8_t* stateRegister,
+        uint8_t lowerLimit,
+        uint8_t upperLimit)
       {
         _inputRegister = inputRegister;
         _inputPin0 = inputPin0;
         _inputPin1 = inputPin1;
         _stateRegister = stateRegister;
+        _lowerLimit = lowerLimit;
+        _upperLimit = upperLimit;
 
         _state = 3;
         _encVal = 0;
@@ -51,23 +59,23 @@ class RotaryEncoder
           {
               _encVal = 0;
 
-              if (*_stateRegister == 0)
-              {
-                  return;
-              }
-
-              *_stateRegister -=1;
-          }
-          else if(_encVal < -3 ) //four steps backwards
-          {
-              _encVal = 0;
-
-              if (*_stateRegister == 127)
+              if (*_stateRegister == _upperLimit)
               {
                   return;
               }
 
               *_stateRegister +=1;
+          }
+          else if(_encVal < -3 ) //four steps backwards
+          {
+              _encVal = 0;
+
+              if (*_stateRegister == _lowerLimit)
+              {
+                  return;
+              }
+
+              *_stateRegister -=1;
           }
       }
 };
