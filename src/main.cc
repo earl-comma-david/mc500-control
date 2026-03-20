@@ -19,7 +19,7 @@
 #define DIM_OFFSET 12
 
 uint16_t _attenuationStepsDisplay[] = { 60, 57, 48, 41, 36, 32, 29, 27, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 13, 11, 8, 5, 0 };
-uint16_t _attenuationStepsRelays[]  = {  0,  8, 16, 24, 32, 40, 48, 56, 64, 72, 74, 76, 78, 80, 100, 104, 110, 115, 120, 120, 120, 124, 124, 127 };
+uint16_t _attenuationStepsRelays[]  = {  0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 74, 76, 78, 80, 100, 104, 110, 115, 120, 120, 120, 124, 124, 127 };
 
 volatile uint16_t _commandWord = 0;
 volatile uint16_t _switchState = 0b0100000001000000;
