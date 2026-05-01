@@ -10,7 +10,7 @@ class SevenSegmentDisplay
 {
   private:
     // Segment lookup
-    inline static const uint8_t _segmentTable[10] = {
+    inline static const uint8_t _segmentTable[11] = {
         0b01111110, // 0
         0b00110000, // 1
         0b01101101, // 2
@@ -21,6 +21,7 @@ class SevenSegmentDisplay
         0b01110000, // 7
         0b01111111, // 8
         0b01110011, // 9
+        0b10000000, // .
     };
 
     // Cathode Drive Pins
@@ -32,7 +33,7 @@ class SevenSegmentDisplay
     OutputShiftRegister _outputSR;
 
     // Display State
-    uint8_t _value;
+    //uint8_t _value;
     uint8_t _pendingCathode;
     uint8_t _digits[2];
     uint8_t _currentDigit;
@@ -49,7 +50,7 @@ class SevenSegmentDisplay
           _outputRegister(outputRegister),
           _pinCathode0(pinCathode0),
           _pinCathode1(pinCathode1),
-          _value(0),
+          //_value(0),
           _currentDigit(0)
     {
     }
@@ -57,10 +58,15 @@ class SevenSegmentDisplay
     // Call from main loop whenever the displayed number changes
     void setValue(uint8_t value)
     {
-        // TODO: figure out how to link this to the pins
-        _digits[1] = _segmentTable[value / 10]; // tens
-        _digits[0] = _segmentTable[value % 10]; // ones
-        _value = value;
+        if (value > 99) {
+            _digits[1] = _segmentTable[10];
+            _digits[0] = _segmentTable[10];
+        } else {
+            // TODO: figure out how to link this to the pins
+            _digits[1] = _segmentTable[value / 10]; // tens
+            _digits[0] = _segmentTable[value % 10]; // ones
+            //_value = value;
+        }
     }
 
     void Update()
